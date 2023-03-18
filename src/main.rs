@@ -1,16 +1,16 @@
-use walkdir::WalkDir;
-use std::fs::{self, File};
-use std::path::{Path, PathBuf};
-use handlebars::Handlebars;
-use std::io::Write;
-use toml::{Table, Value};
 use chrono::NaiveDate;
+use handlebars::Handlebars;
 use serde_derive::Serialize;
+use std::fs::{self, File};
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use toml::{Table, Value};
+use walkdir::WalkDir;
 
 #[derive(Clone, Serialize)]
 struct Blog {
     config: Table,
-    path: PathBuf
+    path: PathBuf,
 }
 
 #[derive(Clone, Serialize)]
@@ -18,7 +18,7 @@ struct BlogPage {
     title: String,
     blogs: Vec<Blog>,
     before: Option<usize>,
-    after: Option<usize>
+    after: Option<usize>,
 }
 
 fn main() {
@@ -31,85 +31,142 @@ fn main() {
         if e.metadata().unwrap().is_file() {
             let mut path = e.path();
             path = path.strip_prefix("static/").unwrap(); // should never fail
-            fs::copy(e.path(), Path::new("public").join(path)).expect(&format!("failed to copy static/{} to public/{}", path.display(), path.display()));
+            fs::copy(e.path(), Path::new("public").join(path)).unwrap_or_else(|_| {
+                panic!(
+                    "failed to copy static/{} to public/{}",
+                    path.display(),
+                    path.display()
+                )
+            });
         }
     }
 
     // make template
     let mut reg = Handlebars::new();
-    reg.register_template_string("main", fs::read_to_string("template.html.hbs").expect("cant read template.html.hbs")).expect("cant make template");
+    reg.register_template_string(
+        "main",
+        fs::read_to_string("template.html.hbs").expect("cant read template.html.hbs"),
+    )
+    .expect("cant make template");
 
     //format all pages
     for e in WalkDir::new("pages").into_iter().filter_map(|e| e.ok()) {
         if e.metadata().unwrap().is_file() {
             let path = e.path();
-            let contents = fs::read_to_string(path).expect(&format!("Cant read file {}", path.display()));
-            let mut config = format!("{}\ncontent = \"\"", contents.split("+++").nth(1).expect(&format!("{} does not have a +++ section", path.display()))).parse::<Table>().unwrap();
-            let content = contents.split("+++").nth(2).expect(&format!("{} does not have a +++ section", path.display()));
+            let contents = fs::read_to_string(path)
+                .unwrap_or_else(|_| panic!("Cant read file {}", path.display()));
+            let mut config = format!(
+                "{}\ncontent = \"\"",
+                contents
+                    .split("+++")
+                    .nth(1)
+                    .unwrap_or_else(|| panic!("{} does not have a +++ section", path.display()))
+            )
+            .parse::<Table>()
+            .unwrap();
+            let content = contents
+                .split("+++")
+                .nth(2)
+                .unwrap_or_else(|| panic!("{} does not have a +++ section", path.display()));
             let config_content = config.get_mut("content").unwrap();
             *config_content = Value::try_from(md_to_html(content)).unwrap();
-            let path = Path::new("public").join(path.strip_prefix("pages").unwrap()).with_extension("html");
-            let mut file = File::create(path.clone()).expect(&format!("Cant make file {}", path.display()));
-            file.write_all(reg.render("main", &config).expect(&format!("Cant render {}", path.display())).as_bytes()).expect(&format!("Cant write to file {}", path.display()))
+            let path = Path::new("public")
+                .join(path.strip_prefix("pages").unwrap())
+                .with_extension("html");
+            let mut file = File::create(path.clone())
+                .unwrap_or_else(|_| panic!("Cant make file {}", path.display()));
+            file.write_all(
+                reg.render("main", &config)
+                    .unwrap_or_else(|_| panic!("Cant render {}", path.display()))
+                    .as_bytes(),
+            )
+            .unwrap_or_else(|_| panic!("Cant write to file {}", path.display()))
         }
     }
 
     //do the blogs
-    match fs::read_dir("blogs") {
-        Ok(blogs) => {
-            fs::create_dir("public/blogs").expect("could not make the folder \"public/blogs\"");
-            let mut all_blogs:Vec<Blog> = Vec::new();
-            for i in blogs {
-                if let Ok(i) = i {
-                let path = i.path();
-                    let contents = fs::read_to_string(path.clone()).expect(&format!("Cant read file {}", path.display()));
-                    let mut config = format!("{}\ncontent = \"\"", contents.split("+++").nth(1).expect(&format!("{} does not have a +++ section", path.display()))).parse::<Table>().unwrap();
-                    let content = contents.split("+++").nth(2).expect(&format!("{} does not have a +++ section", path.display()));
-                    let config_content = config.get_mut("content").unwrap();
-                    *config_content = Value::try_from(md_to_html(content)).unwrap();
-                    let path = path.strip_prefix("blogs").unwrap().with_extension("html");
-                    let mut file = File::create(Path::new("public/blogs").join(path.clone())).expect(&format!("Cant make file public/blogs/{}", path.display()));
-                    file.write_all(reg.render("main", &config).expect(&format!("Cant render public/blogs/{}", path.display())).as_bytes()).expect(&format!("Cant write to file public/blogs/{}", path.display()));
-                    all_blogs.push(Blog {
-                        config: config,
-                        path: path.to_path_buf()
-                    });
-                }
+    if let Ok(blogs) = fs::read_dir("blogs") {
+        fs::create_dir("public/blogs").expect("could not make the folder \"public/blogs\"");
+        let mut all_blogs: Vec<Blog> = Vec::new();
+        for i in blogs.flatten() {
+            let path = i.path();
+            let contents = fs::read_to_string(path.clone())
+                .unwrap_or_else(|_| panic!("Cant read file {}", path.display()));
+            let mut config = format!(
+                "{}\ncontent = \"\"",
+                contents
+                    .split("+++")
+                    .nth(1)
+                    .unwrap_or_else(|| panic!("{} does not have a +++ section", path.display()))
+            )
+            .parse::<Table>()
+            .unwrap();
+            let content = contents
+                .split("+++")
+                .nth(2)
+                .unwrap_or_else(|| panic!("{} does not have a +++ section", path.display()));
+            let config_content = config.get_mut("content").unwrap();
+            *config_content = Value::try_from(md_to_html(content)).unwrap();
+            let path = path.strip_prefix("blogs").unwrap().with_extension("html");
+            let mut file = File::create(Path::new("public/blogs").join(path.clone()))
+                .unwrap_or_else(|_| panic!("Cant make file public/blogs/{}", path.display()));
+            file.write_all(
+                reg.render("main", &config)
+                    .unwrap_or_else(|_| panic!("Cant render public/blogs/{}", path.display()))
+                    .as_bytes(),
+            )
+            .unwrap_or_else(|_| panic!("Cant write to file public/blogs/{}", path.display()));
+            all_blogs.push(Blog {
+                config,
+                path: path.to_path_buf(),
+            });
+        }
+        all_blogs.sort_by(|a, b| {
+            NaiveDate::parse_from_str(
+                b.config["date"]
+                    .as_str()
+                    .unwrap_or_else(|| panic!("{} does not have a date", b.path.display())),
+                "%Y-%m-%d",
+            )
+            .unwrap_or_else(|_| panic!("Cant convert {} date", b.path.display()))
+            .cmp(
+                &NaiveDate::parse_from_str(
+                    a.config["date"]
+                        .as_str()
+                        .unwrap_or_else(|| panic!("{} does not have a date", a.path.display())),
+                    "%Y-%m-%d",
+                )
+                .unwrap_or_else(|_| panic!("Cant convert {} date", a.path.display())),
+            )
+        });
+        let mut i = 0;
+        let blog_pages = all_blogs.chunks(10).map(|x| {
+            let before = if i > 0 { Some(i - 1) } else { None };
+            let after = if i < all_blogs.len() / 10 {
+                Some(i + 1)
+            } else {
+                None
+            };
+            i += 1;
+            BlogPage {
+                title: "Blogs".to_string(),
+                blogs: x.to_vec(),
+                before,
+                after,
             }
-            all_blogs.sort_by(|a,b| NaiveDate::parse_from_str(b.config["date"].as_str().expect(&format!("{} does not have a date", b.path.display())), "%Y-%m-%d").expect(&format!("Cant convert {} date", b.path.display())).cmp(&NaiveDate::parse_from_str(a.config["date"].as_str().expect(&format!("{} does not have a date", a.path.display())), "%Y-%m-%d").expect(&format!("Cant convert {} date", a.path.display()))));
-            let mut i = 0;
-            let blog_pages = all_blogs.chunks(10).map(|x| {
-                let before = if i > 0 {
-                    Some(i-1)
-                }
-                else {
-                    None
-                };
-                let after = if i < all_blogs.len()/10 {
-                    Some(i+1)
-                }
-                else {
-                    None
-                };
-                i+=1;
-                BlogPage {
-                    title: "Blogs".to_string(),
-                    blogs: x.to_vec(),
-                    before,
-                    after
-                }
-            }).collect::<Vec<BlogPage>>();
-            let mut x = 0;
-            for i in blog_pages {
-                let path_name = format!("public/blogs-{}.html", x);
-                let path = Path::new(&path_name);
-                let mut file = File::create(path.clone()).expect(&format!("Cant make file {}", path.display()));
-                file.write_all(reg.render("main", &i).expect(&format!("Cant render {}", path.display())).as_bytes()).expect(&format!("Cant write to file {}", path.display()));
-                x+=1;
-            }
-
-        },
-        Err(_) => {}
+        });
+        for (x, i) in blog_pages.enumerate() {
+            let path_name = format!("public/blogs-{}.html", x);
+            let path = Path::new(&path_name);
+            let mut file =
+                File::create(path).unwrap_or_else(|_| panic!("Cant make file {}", path.display()));
+            file.write_all(
+                reg.render("main", &i)
+                    .unwrap_or_else(|_| panic!("Cant render {}", path.display()))
+                    .as_bytes(),
+            )
+            .unwrap_or_else(|_| panic!("Cant write to file {}", path.display()));
+        }
     }
 }
 
