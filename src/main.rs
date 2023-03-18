@@ -31,6 +31,10 @@ fn main() {
         if e.metadata().unwrap().is_file() {
             let mut path = e.path();
             path = path.strip_prefix("static/").unwrap(); // should never fail
+            let mut parent = path.to_path_buf();
+            parent.pop();
+            fs::create_dir_all(parent.clone())
+                .unwrap_or_else(|_| panic!("Cant make the folders {}", parent.display()));
             fs::copy(e.path(), Path::new("public").join(path)).unwrap_or_else(|_| {
                 panic!(
                     "failed to copy static/{} to public/{}",
@@ -73,6 +77,10 @@ fn main() {
             let path = Path::new("public")
                 .join(path.strip_prefix("pages").unwrap())
                 .with_extension("html");
+            let mut parent = path.to_path_buf();
+            parent.pop();
+            fs::create_dir_all(parent.clone())
+                .unwrap_or_else(|_| panic!("Cant make the folders {}", parent.display()));
             let mut file = File::create(path.clone())
                 .unwrap_or_else(|_| panic!("Cant make file {}", path.display()));
             file.write_all(
