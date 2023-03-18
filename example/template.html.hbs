@@ -1,0 +1,50 @@
+
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset='utf-8'>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>AMTitan :: {{title}}</title>
+
+        <link rel="stylesheet" href="/main.css" />
+    </head>
+    <body >
+<header class="text-center">
+    <h1 class="text-2xl font-bold">{{title}}</h1>
+    <hr />
+    <div>
+        <a href="/">Home</a> |
+        <a href="/about">About</a> |
+        <a href="/blogs-0">Blogs</a> |
+    </div>
+    <hr />
+</header>
+
+<main>
+    {{#if blogs}}
+        {{#each blogs}}
+            <p>{{this.config.date}}</p>
+            <a href="/blogs/{{this.path}}">{{this.config.title}}</a>
+        {{/each}}
+        {{#if before}}
+            {{#if after}}
+                <hr>
+            {{/if}}
+        {{/if}}
+        {{#if before}}
+            <a href="/blogs-{{before}}">Page {{before}}</a>
+            {{#if after}}
+                |
+            {{/if}}
+        {{/if}}
+        {{#if after}}
+            <a href="/blogs-{{after}}">Page {{after}}</a>
+        {{/if}}
+
+    {{else}}
+        {{{content}}}
+    {{/if}}
+</main>
+
+</body>
+</html>

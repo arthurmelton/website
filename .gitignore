@@ -4,5 +4,4 @@
 /static
 /blogs
 /pages
-template.html.hbs
-blog.html.hbs
+/template.html.hbs
