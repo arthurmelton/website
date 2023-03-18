@@ -164,7 +164,7 @@ fn main() {
             }
         });
         for (x, i) in blog_pages.enumerate() {
-            let path_name = format!("public/blogs-{}.html", x);
+            let path_name = format!("public/blogs-{x}.html");
             let path = Path::new(&path_name);
             let mut file =
                 File::create(path).unwrap_or_else(|_| panic!("Cant make file {}", path.display()));
