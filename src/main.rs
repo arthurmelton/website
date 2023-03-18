@@ -1,12 +1,12 @@
 use chrono::NaiveDate;
 use handlebars::Handlebars;
-use serde_derive::{Serialize, Deserialize};
+use rss::{ChannelBuilder, Guid, Item};
+use serde_derive::{Deserialize, Serialize};
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use toml::{Table, Value};
 use walkdir::WalkDir;
-use rss::{Item, Guid, ChannelBuilder};
 
 #[derive(Clone, Serialize)]
 struct Blog {
@@ -29,7 +29,7 @@ struct Jsonfeed {
     items: Vec<JsonfeedItems>,
     icon: String,
     home_page_url: String,
-    feed_url: String
+    feed_url: String,
 }
 
 #[derive(Serialize)]
@@ -53,7 +53,10 @@ fn main() {
     let _ = fs::remove_dir_all("public");
     fs::create_dir("public").expect("could not make the folder \"public\"");
 
-    let config: Config = toml::from_str(&fs::read_to_string("config.toml").expect("could not read file config.toml")).expect("Cant convert your config to toml");
+    let config: Config = toml::from_str(
+        &fs::read_to_string("config.toml").expect("could not read file config.toml"),
+    )
+    .expect("Cant convert your config to toml");
 
     //copy all static
     for e in WalkDir::new("static").into_iter().filter_map(|e| e.ok()) {
@@ -178,57 +181,113 @@ fn main() {
             )
         });
         let mut i = 0;
-        let blog_pages = all_blogs.chunks(10).map(|x| {
-            let before = if i > 0 { Some(i - 1) } else { None };
-            let after = if i < all_blogs.len() / 10 {
-                Some(i + 1)
-            } else {
-                None
-            };
-            i += 1;
-            BlogPage {
-                title: "Blogs".to_string(),
-                blogs: x.to_vec(),
-                before,
-                after,
-            }
-        }).collect::<Vec<_>>();
+        let blog_pages = all_blogs
+            .chunks(10)
+            .map(|x| {
+                let before = if i > 0 { Some(i - 1) } else { None };
+                let after = if i < all_blogs.len() / 10 {
+                    Some(i + 1)
+                } else {
+                    None
+                };
+                i += 1;
+                BlogPage {
+                    title: "Blogs".to_string(),
+                    blogs: x.to_vec(),
+                    before,
+                    after,
+                }
+            })
+            .collect::<Vec<_>>();
         let json_blogs = serde_json::to_string(&Jsonfeed {
             version: "https://jsonfeed.org/version/1".to_string(),
             title: format!("{}'s Blog", config.name),
             icon: config.icon,
             home_page_url: config.home_page.clone(),
             feed_url: format!("{}/blogs.json", config.home_page),
-            items: blog_pages.first().expect("cant get the first blog page").blogs.iter().map(|x| JsonfeedItems {
-                id: format!("{}/blogs/{}", config.home_page.clone(), x.path.display()),
-                url: format!("{}/blogs/{}", config.home_page, x.path.display()),
-                title: x.config["title"].as_str().expect("cant get the title of the blog").to_string(),
-                content_html: x.config["content"].as_str().expect("cant get the content of a blog (should never happen)").to_string(),
-                date_published: format!("{}T00:00:00+00:00", x.config["date"].as_str().expect("no date on blog"))
-            }).collect()
-        }).expect("Cant write the json blogs");
+            items: blog_pages
+                .first()
+                .expect("cant get the first blog page")
+                .blogs
+                .iter()
+                .map(|x| JsonfeedItems {
+                    id: format!("{}/blogs/{}", config.home_page.clone(), x.path.display()),
+                    url: format!("{}/blogs/{}", config.home_page, x.path.display()),
+                    title: x.config["title"]
+                        .as_str()
+                        .expect("cant get the title of the blog")
+                        .to_string(),
+                    content_html: x.config["content"]
+                        .as_str()
+                        .expect("cant get the content of a blog (should never happen)")
+                        .to_string(),
+                    date_published: format!(
+                        "{}T00:00:00+00:00",
+                        x.config["date"].as_str().expect("no date on blog")
+                    ),
+                })
+                .collect(),
+        })
+        .expect("Cant write the json blogs");
         let rss_blogs = ChannelBuilder::default()
             .title(format!("{}'s Blog", config.name))
             .link(format!("{}/blogs", config.home_page))
-            .items(blog_pages.first().expect("cant get the first blog page").blogs.iter().map(|x| {
-                let mut item = Item::default();
-                item.set_guid({
-                    let mut guid = Guid::default();
-                    guid.set_permalink(true);
-                    guid.set_value(format!("{}/blogs/{}", config.home_page.clone(), x.path.display()));
-                    guid
-                });
-                item.set_title(x.config["title"].as_str().expect("Cant get the title of a blog").to_string());
-                item.set_link(format!("{}/blogs/{}", config.home_page.clone(), x.path.display()));
-                item.set_description(x.config["content"].as_str().expect("cant get the content of a blog (should never happen)").to_string());
-                item.set_pub_date(NaiveDate::parse_from_str(x.config["date"].as_str().expect("no date on blog"), "%Y-%m-%d").expect("Cant read date").format("%a, %d %b %Y 00:00:00 +0000").to_string());
-                item
-            }).collect::<Vec<_>>()).build();
+            .items(
+                blog_pages
+                    .first()
+                    .expect("cant get the first blog page")
+                    .blogs
+                    .iter()
+                    .map(|x| {
+                        let mut item = Item::default();
+                        item.set_guid({
+                            let mut guid = Guid::default();
+                            guid.set_permalink(true);
+                            guid.set_value(format!(
+                                "{}/blogs/{}",
+                                config.home_page.clone(),
+                                x.path.display()
+                            ));
+                            guid
+                        });
+                        item.set_title(
+                            x.config["title"]
+                                .as_str()
+                                .expect("Cant get the title of a blog")
+                                .to_string(),
+                        );
+                        item.set_link(format!(
+                            "{}/blogs/{}",
+                            config.home_page.clone(),
+                            x.path.display()
+                        ));
+                        item.set_description(
+                            x.config["content"]
+                                .as_str()
+                                .expect("cant get the content of a blog (should never happen)")
+                                .to_string(),
+                        );
+                        item.set_pub_date(
+                            NaiveDate::parse_from_str(
+                                x.config["date"].as_str().expect("no date on blog"),
+                                "%Y-%m-%d",
+                            )
+                            .expect("Cant read date")
+                            .format("%a, %d %b %Y 00:00:00 +0000")
+                            .to_string(),
+                        );
+                        item
+                    })
+                    .collect::<Vec<_>>(),
+            )
+            .build();
 
         let mut file = File::create("public/blogs.json").expect("Cant make blogs.json");
-        file.write_all(json_blogs.as_bytes()).expect("Cant write to blogs.json");
+        file.write_all(json_blogs.as_bytes())
+            .expect("Cant write to blogs.json");
         let mut file = File::create("public/blogs.rss").expect("Cant make blogs.rss");
-        file.write_all(rss_blogs.to_string().as_bytes()).expect("Cant write to blogs.rss");
+        file.write_all(rss_blogs.to_string().as_bytes())
+            .expect("Cant write to blogs.rss");
 
         for (x, i) in blog_pages.iter().enumerate() {
             let path_name = format!("public/blogs-{x}.html");
