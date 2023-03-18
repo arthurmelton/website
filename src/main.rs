@@ -132,20 +132,20 @@ fn main() {
         }
         all_blogs.sort_by(|a, b| {
             NaiveDate::parse_from_str(
-                b.config["date"]
+                a.config["date"]
                     .as_str()
-                    .unwrap_or_else(|| panic!("{} does not have a date", b.path.display())),
+                    .unwrap_or_else(|| panic!("{} does not have a date", a.path.display())),
                 "%Y-%m-%d",
             )
-            .unwrap_or_else(|_| panic!("Cant convert {} date", b.path.display()))
+            .unwrap_or_else(|_| panic!("Cant convert {} date", a.path.display()))
             .cmp(
                 &NaiveDate::parse_from_str(
-                    a.config["date"]
+                    b.config["date"]
                         .as_str()
-                        .unwrap_or_else(|| panic!("{} does not have a date", a.path.display())),
+                        .unwrap_or_else(|| panic!("{} does not have a date", b.path.display())),
                     "%Y-%m-%d",
                 )
-                .unwrap_or_else(|_| panic!("Cant convert {} date", a.path.display())),
+                .unwrap_or_else(|_| panic!("Cant convert {} date", b.path.display())),
             )
         });
         let mut i = 0;
