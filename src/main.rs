@@ -1,9 +1,25 @@
 use walkdir::WalkDir;
 use std::fs::{self, File};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use handlebars::Handlebars;
 use std::io::Write;
 use toml::{Table, Value};
+use chrono::NaiveDate;
+use serde_derive::Serialize;
+
+#[derive(Clone, Serialize)]
+struct Blog {
+    config: Table,
+    path: PathBuf
+}
+
+#[derive(Clone, Serialize)]
+struct BlogPage {
+    title: String,
+    blogs: Vec<Blog>,
+    before: Option<usize>,
+    after: Option<usize>
+}
 
 fn main() {
     // make public folder
@@ -36,6 +52,64 @@ fn main() {
             let mut file = File::create(path.clone()).expect(&format!("Cant make file {}", path.display()));
             file.write_all(reg.render("main", &config).expect(&format!("Cant render {}", path.display())).as_bytes()).expect(&format!("Cant write to file {}", path.display()))
         }
+    }
+
+    //do the blogs
+    match fs::read_dir("blogs") {
+        Ok(blogs) => {
+            fs::create_dir("public/blogs").expect("could not make the folder \"public/blogs\"");
+            let mut all_blogs:Vec<Blog> = Vec::new();
+            for i in blogs {
+                if let Ok(i) = i {
+                let path = i.path();
+                    let contents = fs::read_to_string(path.clone()).expect(&format!("Cant read file {}", path.display()));
+                    let mut config = format!("{}\ncontent = \"\"", contents.split("+++").nth(1).expect(&format!("{} does not have a +++ section", path.display()))).parse::<Table>().unwrap();
+                    let content = contents.split("+++").nth(2).expect(&format!("{} does not have a +++ section", path.display()));
+                    let config_content = config.get_mut("content").unwrap();
+                    *config_content = Value::try_from(md_to_html(content)).unwrap();
+                    let path = path.strip_prefix("blogs").unwrap().with_extension("html");
+                    let mut file = File::create(Path::new("public/blogs").join(path.clone())).expect(&format!("Cant make file public/blogs/{}", path.display()));
+                    file.write_all(reg.render("main", &config).expect(&format!("Cant render public/blogs/{}", path.display())).as_bytes()).expect(&format!("Cant write to file public/blogs/{}", path.display()));
+                    all_blogs.push(Blog {
+                        config: config,
+                        path: path.to_path_buf()
+                    });
+                }
+            }
+            all_blogs.sort_by(|a,b| NaiveDate::parse_from_str(b.config["date"].as_str().expect(&format!("{} does not have a date", b.path.display())), "%Y-%m-%d").expect(&format!("Cant convert {} date", b.path.display())).cmp(&NaiveDate::parse_from_str(a.config["date"].as_str().expect(&format!("{} does not have a date", a.path.display())), "%Y-%m-%d").expect(&format!("Cant convert {} date", a.path.display()))));
+            let mut i = 0;
+            let blog_pages = all_blogs.chunks(10).map(|x| {
+                let before = if i > 0 {
+                    Some(i-1)
+                }
+                else {
+                    None
+                };
+                let after = if i < all_blogs.len()/10 {
+                    Some(i+1)
+                }
+                else {
+                    None
+                };
+                i+=1;
+                BlogPage {
+                    title: "Blogs".to_string(),
+                    blogs: x.to_vec(),
+                    before,
+                    after
+                }
+            }).collect::<Vec<BlogPage>>();
+            let mut x = 0;
+            for i in blog_pages {
+                let path_name = format!("public/blogs-{}.html", x);
+                let path = Path::new(&path_name);
+                let mut file = File::create(path.clone()).expect(&format!("Cant make file {}", path.display()));
+                file.write_all(reg.render("main", &i).expect(&format!("Cant render {}", path.display())).as_bytes()).expect(&format!("Cant write to file {}", path.display()));
+                x+=1;
+            }
+
+        },
+        Err(_) => {}
     }
 }
 
