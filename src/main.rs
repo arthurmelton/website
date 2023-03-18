@@ -31,11 +31,12 @@ fn main() {
         if e.metadata().unwrap().is_file() {
             let mut path = e.path();
             path = path.strip_prefix("static/").unwrap(); // should never fail
-            let mut parent = path.to_path_buf();
+            let new_path = Path::new("public").join(path);
+            let mut parent = new_path.to_path_buf();
             parent.pop();
             fs::create_dir_all(parent.clone())
                 .unwrap_or_else(|_| panic!("Cant make the folders {}", parent.display()));
-            fs::copy(e.path(), Path::new("public").join(path)).unwrap_or_else(|_| {
+            fs::copy(e.path(), new_path).unwrap_or_else(|_| {
                 panic!(
                     "failed to copy static/{} to public/{}",
                     path.display(),
