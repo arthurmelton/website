@@ -2,8 +2,6 @@
 title = "About"
 +++
 
-# Me
-
 I am a kid from 2006 that likes coding. My favorite language is rust. I
 think its just an amazing language, but some other languages I have
 used are C++, Assembly, C#, and Node / Js. I am not very good with

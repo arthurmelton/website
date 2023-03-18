@@ -1,8 +1,6 @@
 +++
-title = "Home"
+title = "Arthur Melton"
 +++
-
-# Arthur Melton
 
 If you want to see my code, you can view it on [my git server][git] or
 you can view it on [Github (mirror)][github]. Just note that my github
