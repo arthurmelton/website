@@ -14,14 +14,16 @@
     <hr />
     <div>
         <a href="/">Home</a> |
-        <a href="/about">About</a> |
-        <a href="/blogs-0">Blogs</a> |
+        <a href="/blogs-0">Blogs</a>
     </div>
     <hr />
 </header>
 
 <main>
     {{#if blogs}}
+        <a href="/blogs.rss">Rss Feed</a> |
+        <a href="/blogs.json">JSONFeed</a>
+        <br><br>
         {{#each blogs}}
             <p>{{this.config.date}}</p>
             <a href="/blogs/{{this.path}}">{{this.config.title}}</a>
